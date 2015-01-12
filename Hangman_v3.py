@@ -98,31 +98,151 @@ class Phrase(object):
 class Game(object):
     def __init__(self,diff,cats):
         if diff == 'EASY':
-            lives = 50
+            self.lives = 50
         elif diff == 'MEDIUM':
-            lives = 40
+            self.lives = 40
         else:
-            lives = 30   
-        rnd = 1
-        cats = cats
-        ls_on = False
-        fg_on = False
-        ls_used = False
-        lr_used = False
-        le_used = False
-        fg_used = False
+            self.lives = 30
+        self.diff = diff
+        self.rnd = 1
+        self.cats = cats
+        self.ls_on = False
+        self.fg_on = False
+        self.ls_used = False
+        self.lr_used = False
+        self.le_used = False
+        self.fg_used = False
+        self.sel_phrase = None
+        self.curr_cat = None
 
     def cat_select(self):
-        root.unbind_all('<Key>')               
+        roundframe.pack_forget()
         if self.rnd == 1:
             for i in range(10):
                 cat_buttons[i].config(text = self.cats[i].get_name(),command = lambda i=i: self.start_puzzle(self.cats[i]))
         else:
             for i in range(10):
                 if self.cats[i].is_used():
-                    cat_buttons[i].config(bg = 'red',command = None)
+                    cat_buttons[i].config(bg = 'black',command = lambda: c2.config(text = 'You\'ve already completed this category.'))
         c1.config(text = 'Round: ' + str(self.rnd) + '\n')
         catsel.pack()
+    
+    def start_puzzle(self,cat):
+        self.curr_cat = cat
+        catsel.pack_forget()
+        guessframe.pack()
+        if self.rnd in [1,2,3]:
+            self.sel_phrase = self.curr_cat.load_phrase('EASY')
+        elif self.rnd in [4,5,6]:
+            self.sel_phrase = self.curr_cat.load_phrase('MEDIUM')
+        else:
+            self.sel_phrase = self.curr_cat.load_phrase('HARD')
+
+        g1.config(text = 'Round: ' + str(self.rnd))
+        g2.config(text = self.curr_cat.get_name()+'\n')
+        g3.config(text = self.sel_phrase.print_curr_guess())
+        g4.config(text = 'Guess a letter...')
+        g5.config(text = 'Lives: ' + str(self.lives))
+        
+        for l,b in letter_buttons.items():
+            b.config(bg = 'yellow', command = lambda l=l:self.guess_letter(l))
+            
+        lsb.config(command = lambda: self.guess_letter('save'))
+        lrb.config(command = lambda: self.guess_letter('reveal'))
+        leb.config(command = lambda: self.guess_letter('elim'))
+        fgb.config(command = lambda: self.guess_letter('free'))
+
+        if self.ls_used == True:
+            lsb.config(command = lambda: g4.config(text = 'You already used this...'),bg = 'red')
+        if self.lr_used == True:
+            lrb.config(command = lambda: g4.config(text = 'You already used this...'),bg = 'red')
+        if self.le_used == True:
+            leb.config(command = lambda: g4.config(text = 'You already used this...'),bg = 'red')
+        if self.fg_used == True:
+            fgb.config(command = lambda: g4.config(text = 'You already used this...'),bg = 'red')
+
+    def guess_letter(self,letter):
+        if letter == 'save':
+            self.ls_used = True
+            self.ls_on = True
+        elif letter == 'reveal':
+            self.lr_used = True
+            self.sel_phrase.reveal()
+        elif letter == 'elim':
+            self.le_used = True
+            self.sel_phrase.elim()
+        elif letter == 'free':
+            self.fg_used = True
+            self.fg_on = True
+        else:
+            x = self.sel_phrase.guess(letter)
+            if not x:
+                if not self.fg_on:
+                    self.lives -= 1
+            elif self.ls_on:
+                self.lives += x[1]
+            if self.fg_on:
+                self.fg_on = False
+            if self.ls_on:
+                self.ls_on = False
+
+        self.reload()
+            
+    def reload(self): #refreshes the screen after each guess
+        if self.ls_used == True:
+            lsb.config(command = lambda: g4.config(text = 'You already used this...'),bg = 'red')
+        if self.lr_used == True:
+            lrb.config(command = lambda: g4.config(text = 'You already used this...'),bg = 'red')
+        if self.le_used == True:
+            leb.config(command = lambda: g4.config(text = 'You already used this...'),bg = 'red')
+        if self.fg_used == True:
+            fgb.config(command = lambda: g4.config(text = 'You already used this...'),bg = 'red')
+
+        for l,b in letter_buttons.items():
+            if l in self.sel_phrase.guesses:
+                b.config(bg = 'red', command = lambda: g4.config(text = 'You\'ve already guessed this...'))
+
+        if self.lives == 0: #Game Over screen
+            guessframe.pack_forget()
+            go2.config(text = self.curr_cat.get_name())
+            go3.config(text = self.sel_phrase.print_model_guess())
+            gameoverframe.pack()
+                    
+        elif not self.sel_phrase.is_solved: #update after normal guess
+            g3.config(text = self.sel_phrase.print_curr_guess())
+            if self.fg_on and self.ls_on:
+                g4.config(text = 'Life Saver and Free Guess active...')
+            elif self.fg_on:
+                g4.config(text = 'Free Guess active...')
+            elif self.ls_on:
+                g4.config(text = 'Life Saver active...')
+            else:
+                g4.config(text = 'Guess a letter...')
+            if self.rnd == 10:
+                powerups.pack_forget()
+            g5.config(text = 'Lives: ' + str(self.lives))
+            
+        else: #Round completed screen
+            guessframe.pack_forget()
+            if self.rnd != 10:
+                roundframe.pack()
+                r1.config(text = 'Round ' + str(self.rnd) + ' complete!')
+                r2.config(text = self.curr_cat.get_name())
+                r3.config(text = self.sel_phrase.print_curr_guess())
+                r4.config(text = 'Lives: ' + str(self.lives))
+                self.rnd += 1
+                rcontb.config(command = lambda: self.cat_select())
+            else:
+                winframe.pack()
+                w2.config(text = self.curr_cat.get_name())
+                w3.config(text = self.sel_phrase.print_curr_guess())
+                if self.diff == 'EASY':
+                    w4.config(text = 'Meh. Easy difficulty. Try Medium.')
+                elif self.diff == 'MEDIUM':
+                    w4.config(text = 'Impressive. Challenge yourself on Hard.')
+                else:
+                    w4.config(text = 'Wow. Much Respect to you.')
+                w5.config(text = 'You had ' + str(self.lives) + ' lives left.')
 
 def load_phrases(): #loads categories and phrases from the file provided
     cat_count = 0
@@ -150,137 +270,22 @@ def load_phrases(): #loads categories and phrases from the file provided
 
 def filter_cats(cats): #randomly chooses 10 categories from those provided
     new_cats = []
+    cats_reserve = cats.copy()
     while len(new_cats) < 10:
-        x = randint(0,len(cats)-1)
-        new_cats.append(cats[x])
-        cats.pop(x)
+        x = randint(0,len(cats_reserve)-1)
+        new_cats.append(cats_reserve[x])
+        cats_reserve.pop(x)
     return new_cats
     
 def start_game(diff,cats): #main game function
-    nonlocal curr_game
     diffmenu.pack_forget()
     curr_game = Game(diff,cats)
-    
-    def start_puzzle(cat): #main puzzle function
-        catsel.pack_forget()
-        guessframe.pack()
-        nonlocal rnd
-        if rnd in [1,2,3]:
-            sel_phrase = cat.load_phrase('EASY')
-        elif rnd in [4,5,6]:
-            sel_phrase = cat.load_phrase('MEDIUM')
-        else:
-            sel_phrase = cat.load_phrase('HARD')
-
-        g1.config(text = 'Round: ' + str(rnd))
-        g2.config(text = cat.get_name())
-        lsb.config(command = lambda: guess_letter('save'))
-        lrb.config(command = lambda: guess_letter('reveal'))
-        leb.config(command = lambda: guess_letter('elim'))
-        fgb.config(command = lambda: guess_letter('free'))
-
-        if lives == 0: #Game Over screen
-            guessframe.pack_forget()
-            go3.config(text = sel_phrase.print_curr_guess())
-            gameoverframe.pack()
-                
-        elif not sel_phrase.is_solved: #window refresh code
-            g3.config(text = sel_phrase.print_curr_guess())
-            if fg_on and ls_on:
-                g4.config(text = 'Life Saver and Free Guess active...')
-            elif fg_on:
-                g4.config(text = 'Free Guess active...')
-            elif ls_on:
-                g4.config(text = 'Life Saver active...')
-            else:
-                g4.config(text = 'Guess a letter...')
-            root.bind_all('<Key>',key_guess)
-            if rnd == 10:
-                powerups.pack_forget()
-            g5.config(text = 'Lives: ' + str(lives))
-            
-        else: #Round completed screen
-            g3.config(text = sel_phrase.print_curr_guess())
-            root.unbind_all('<Key>')
-            if rnd == 10:
-                title4.config(text = "Congratulations! You win!")
-                title4.pack()
-                #b1.config(text = 'Play Again?',command = sel_difficulty)
-                #b1.pack(fill = X)
-                b2.pack()
-            else:    
-                rnd += 1
-                b1.config(text = 'Continue',command = cat_select)
-                b1.pack(fill = X)
-                b2.pack()
-            lifecounter.config(text = 'Lives left: ' + str(lives))
-            lifecounter.pack()
-            
-    def reload(): #refreshes the screen after each guess
-        nonlocal rnd
-        if ls_used == True:
-            lsb.config(command = lambda: g4.config(text = 'You already used this...'),bg = 'red')
-        if lr_used == True:
-            lrb.config(command = lambda: g4.config(text = 'You already used this...'),bg = 'red')
-        if le_used == True:
-            leb.config(command = lambda: g4.config(text = 'You already used this...'),bg = 'red')
-        if fg_used == True:
-            fgb.config(command = lambda: g4.config(text = 'You already used this...'),bg = 'red')
-
-    def guess_letter(letter):
-        nonlocal lives
-        nonlocal fg_on
-        nonlocal ls_on
-        nonlocal ls_used
-        nonlocal lr_used
-        nonlocal le_used
-        nonlocal fg_used
-        if letter == 'save':
-            ls_used = True
-            ls_on = True
-        elif letter == 'reveal':
-            lr_used = True
-            sel_phrase.reveal()
-        elif letter == 'elim':
-            le_used = True
-            sel_phrase.elim()
-        elif letter == 'free':
-            fg_used = True
-            fg_on = True
-        else:
-            x = sel_phrase.guess(letter)
-            if not x:
-                if not fg_on:
-                    lives -= 1
-            elif ls_on:
-                lives += x[1]
-
-            if fg_on:
-                fg_on = False
-            if ls_on:
-                ls_on = False
-        reload()
-
-    def key_guess(event):
-        nonlocal sel_phrase
-        k = event.char
-        if k not in sel_phrase.guesses and k.upper() not in sel_phrase.guesses:
-            if k in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
-                guess_letter(k)
-            elif k in 'abcdefghijklmnopqrstuvwxyz':
-                guess_letter(k.upper())
-        
-        for l,b in letter_buttons.items():
-            if l in sel_phrase.guesses:
-                b.config(bg = 'red', command = lambda: title4.config(text = 'You\'ve already guessed this...'))
-            else:
-                b.config(bg = 'yellow', command = lambda l=l: guess_letter(l))
-    cat_select()
+    curr_game.cat_select()
 
 #master category list
-
 CATS = load_phrases()
 
+#interface functions
 def diff_select():
     mainmenu.pack_forget()
     diffmenu.pack()
@@ -299,6 +304,10 @@ def help_back():
 
 def try_again():
     gameoverframe.pack_forget()
+    mainmenu.pack()
+
+def play_again():
+    winframe.pack_forget()
     mainmenu.pack()
 
 #UI Stuff   
@@ -464,10 +473,33 @@ roundframe = Frame(frame)
 r1 = Label(roundframe,font = ("Trebuchet MS",9),text = 'Round complete')
 r2 = Label(roundframe,font = ("Trebuchet MS",9),text = 'Category')
 r3 = Label(roundframe,font = ("Trebuchet MS",9),text = 'Correct Phrase')
-r4 = Label(roundframe,font = ("Trebuchet MS",9),text = 'Win?')
-r5 = Label(roundframe,font = ("Trebuchet MS",9),text = 'Lives left')
-rbackb = Button(gameoverframe,width = 48, font = ("Trebuchet MS",9),text = 'Continue',bg = 'green',command = 
-rquitb = Button(gameoverframe,width = 48, text= 'QUIT', font = ("Trebuchet MS",9),bg= 'red',command = frame.quit)
+r4 = Label(roundframe,font = ("Trebuchet MS",9),text = 'Lives left')
+rcontb = Button(roundframe,width = 48, font = ("Trebuchet MS",9),text = 'Continue',bg = 'green')
+rquitb = Button(roundframe,width = 48, text= 'QUIT', font = ("Trebuchet MS",9),bg= 'red',command = frame.quit)
+
+r1.pack()
+r2.pack()
+r3.pack()
+r4.pack()
+rcontb.pack()
+rquitb.pack()
+
+winframe = Frame(frame)
+w1 = Label(winframe,font = ("Trebuchet MS",9),text = 'YOU WIN!')
+w2 = Label(winframe,font = ("Trebuchet MS",9),text = 'Category')
+w3 = Label(winframe,font = ("Trebuchet MS",9),text = 'Phrase')
+w4 = Label(winframe,font = ("Trebuchet MS",9),text = 'Now try a harder difficulty.')
+w5 = Label(winframe,font = ("Trebuchet MS",9),text = 'Lives left')
+wagainb = Button(winframe,width = 48, font = ("Trebuchet MS",9),text = 'Play Again?',bg = 'green',command = play_again)
+wquitb = Button(winframe,width = 48, text= 'QUIT', font = ("Trebuchet MS",9),bg= 'red',command = frame.quit)
+
+w1.pack()
+w2.pack()
+w3.pack()
+w4.pack()
+w5.pack()
+wagainb.pack()
+wquitb.pack()
 
 #initiation
 mainmenu.pack()
