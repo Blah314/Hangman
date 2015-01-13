@@ -95,6 +95,16 @@ class Phrase(object):
                 not_in.remove(x)
                 self.guesses.append(x)
 
+    def is_fortune_solved(self):
+        remaining = []
+        for l in self.letters_in:
+            if l not in self.guesses:
+                remaining.append(l)
+        for l in 'BCDFGHJKLMNPQRSTVWXYZ':
+            if l in remaining:
+                return False
+        return True
+
 class Game(object):
     def __init__(self,diff,cats):
         if diff == 'EASY' or diff == 'CRIPPLE':
@@ -124,12 +134,28 @@ class Game(object):
         self.money = 0
         self.multiplier = 10
         self.guess_count = 0
+        self.phrases_used = []
+        self.surpress = True
+        lsb.config(bg = 'green')
+        lrb.config(bg = 'green')
+        leb.config(bg = 'green')
+        fgb.config(bg = 'green')
 
     def cat_select(self):
         roundframe.pack_forget()
-        if self.rnd == 1:
+        if self.diff == 'ENDURANCE':
+            new_cats = []
+            cats_reserve = self.cats.copy()
+            while len(new_cats) < 10:
+                x = randint(0,len(cats_reserve)-1)
+                new_cats.append(cats_reserve[x])
+                cats_reserve.pop(x)
             for i in range(10):
-                cat_buttons[i].config(text = self.cats[i].get_name(),command = lambda i=i: self.start_puzzle(self.cats[i]))
+                cat_buttons[i].config(text = new_cats[i].get_name(),command = lambda i=i: self.start_puzzle(new_cats[i]))
+
+        elif self.rnd == 1:
+            for i in range(10):
+                cat_buttons[i].config(text = self.cats[i].get_name(),command = lambda i=i: self.start_puzzle(self.cats[i]))    
         else:
             if self.diff != 'ENDURANCE':
                 for i in range(10):
@@ -139,6 +165,8 @@ class Game(object):
         catsel.pack()
     
     def start_puzzle(self,cat):
+        self.surpress = True
+        powerups.pack()
         self.curr_cat = cat
         self.guess_count = 0
         self.multiplier = 10
@@ -185,7 +213,10 @@ class Game(object):
         if self.fg_used == True:
             fgb.config(command = lambda: g4.config(text = 'You already used this...'),bg = 'red')
 
-    def guess_letter(self,letter):
+        if self.rnd == 10 and self.diff != 'ENDURANCE':
+            powerups.pack_forget()
+        
+    def guess_letter(self,letter,*fortune):
         if letter == 'save':
             self.ls_used = True
             self.ls_on = True
@@ -198,6 +229,9 @@ class Game(object):
         elif letter == 'free':
             self.fg_used = True
             self.fg_on = True
+        elif letter == 'fortune':
+            self.surpress = True
+            self.sel_phrase.guess(fortune[0])
         else:
             x = self.sel_phrase.guess(letter)
             if not x:
@@ -209,7 +243,8 @@ class Game(object):
                 self.fg_on = False
             if self.ls_on:
                 self.ls_on = False
-
+            self.surpress = False
+            self.guess_count += 1  
         self.reload()
             
     def reload(self): #refreshes the screen after each guess
@@ -231,7 +266,36 @@ class Game(object):
             go2.config(text = self.curr_cat.get_name())
             go3.config(text = self.sel_phrase.print_model_guess())
             gameoverframe.pack()
-                    
+        elif self.diff == 'FORTUNE' and self.sel_phrase.is_fortune_solved():
+            guessframe.pack_forget()
+            if self.rnd != 10:
+                roundframe.pack()
+                r1.config(text = 'Round ' + str(self.rnd) + ' complete!')
+                r2.config(text = self.curr_cat.get_name())
+                r3.config(text = self.sel_phrase.print_model_guess())
+                r4.config(text = 'Lives: ' + str(self.lives))
+                self.rnd += 1
+                rcontb.config(command = lambda: self.cat_select())
+            else:
+                winframe.pack()
+                w2.config(text = self.curr_cat.get_name())
+                w3.config(text = self.sel_phrase.print_model_guess())
+                if self.diff == 'EASY':
+                    w4.config(text = 'Meh. Easy difficulty. Try Medium.')
+                elif self.diff == 'MEDIUM':
+                    w4.config(text = 'Impressive. Challenge yourself on Hard.')
+                else:
+                    w4.config(text = 'Wow. Much Respect to you.')
+                w5.config(text = 'You had ' + str(self.lives) + ' lives left.')
+            
+        elif self.diff == 'FORTUNE' and self.guess_count % 3 == 0 and self.surpress == False:
+            vowels = 'AEIOU'
+            unused_vowels = ''
+            for l in vowels:
+                if l not in self.sel_phrase.guesses and l in self.sel_phrase.letters_in:
+                    unused_vowels += l
+            self.guess_letter('fortune',unused_vowels[randint(0,len(unused_vowels)-1)])
+            
         elif not self.sel_phrase.is_solved: #update after normal guess
             g3.config(text = self.sel_phrase.print_curr_guess())
             if self.fg_on and self.ls_on:
@@ -242,13 +306,11 @@ class Game(object):
                 g4.config(text = 'Life Saver active...')
             else:
                 g4.config(text = 'Guess a letter...')
-            if self.rnd == 10:
-                powerups.pack_forget()
             g5.config(text = 'Lives: ' + str(self.lives))
             
         else: #Round completed screen
             guessframe.pack_forget()
-            if self.rnd != 10:
+            if self.rnd != 10 or self.diff == 'ENDURANCE':
                 roundframe.pack()
                 r1.config(text = 'Round ' + str(self.rnd) + ' complete!')
                 r2.config(text = self.curr_cat.get_name())
@@ -369,7 +431,7 @@ crippledb = Button(diffbframe,width = 24, text= 'CRIPPLED: \n 50 lives \n No pow
 economyb = Button(diffbframe,width = 24, text= 'ECONOMY: \n 40 lives \n Earn money by guessing \n Buy powerups with money', font = ("Trebuchet MS",9),bg= 'tan',command = lambda: start_game('ECONOMY',filter_cats(CATS)))
 fortuneb = Button(diffbframe,width = 24, text= 'WHEEL OF FORTUNE: \n 40 lives \n No guessing vowels \n They appear slowly', font = ("Trebuchet MS",9),bg= 'orange',command = lambda: start_game('FORTUNE',filter_cats(CATS)))
 hangaroob = Button(diffbframe,width = 24, text= 'HANG-A-ROO: \n 4 lives a round \n No powerups \n Inspirational', font = ("Trebuchet MS",9),bg= 'violet red',command = lambda: start_game('ROO',filter_cats(CATS)))
-endb = Button(diffbframe,width = 24, text= 'ENDURANCE: \n 35 lives \n Infinite hard phrases \n Until you lose', font = ("Trebuchet MS",9),bg= 'magenta',command = lambda: start_game('ENDURANCE',filter_cats(CATS)))
+endb = Button(diffbframe,width = 24, text= 'ENDURANCE: \n 35 lives \n Infinite hard phrases \n Until you die', font = ("Trebuchet MS",9),bg= 'magenta',command = lambda: start_game('ENDURANCE',CATS))
 
 easyb.grid(row = 0, column = 0)
 mediumb.grid(row = 0, column = 1)
@@ -396,6 +458,10 @@ ls = PhotoImage(file = 'life_saver.gif')
 le = PhotoImage(file = 'letter_elim.gif')
 lr = PhotoImage(file = 'letter_reveal.gif')
 fg = PhotoImage(file = 'free_guess.gif')
+lsc = PhotoImage(file = 'life_saver_cost.gif')
+lec = PhotoImage(file = 'letter_elim_cost.gif')
+lrc = PhotoImage(file = 'letter_reveal_cost.gif')
+fgc = PhotoImage(file = 'free_guess_cost.gif')
 helpframe = Frame(frame)
 helpinner = Frame(helpframe)
 
@@ -467,16 +533,16 @@ for l in 'NOPQRSTUVWXYZ':
 
 powerups = Frame(guessframe)
 #powerup buttons
-lsb = Button(powerups, height = 40, width = 40, image = ls, bg = 'green')
+lsb = Button(powerups, height = 40, width = 40, image = ls)
 lsb.grid(row = 0,column = 0)
 
-lrb = Button(powerups, height = 40, width = 40, image = lr, bg = 'green')
+lrb = Button(powerups, height = 40, width = 40, image = lr)
 lrb.grid(row = 0,column = 1)
 
-leb = Button(powerups, height = 40, width = 40, image = le, bg = 'green')
+leb = Button(powerups, height = 40, width = 40, image = le)
 leb.grid(row = 0,column = 2)
 
-fgb = Button(powerups, height = 40, width = 40, image = fg, bg = 'green')
+fgb = Button(powerups, height = 40, width = 40, image = fg)
 fgb.grid(row = 0,column = 3)
 
 g5 = Label(guessframe,font = ("Trebuchet MS",9),text = 'Lifecounter')
@@ -524,6 +590,7 @@ r4.pack()
 rcontb.pack()
 rquitb.pack()
 
+#win screen
 winframe = Frame(frame)
 w1 = Label(winframe,font = ("Trebuchet MS",9),text = 'YOU WIN!')
 w2 = Label(winframe,font = ("Trebuchet MS",9),text = 'Category')
