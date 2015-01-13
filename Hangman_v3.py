@@ -97,23 +97,33 @@ class Phrase(object):
 
 class Game(object):
     def __init__(self,diff,cats):
-        if diff == 'EASY':
+        if diff == 'EASY' or diff == 'CRIPPLE':
             self.lives = 50
-        elif diff == 'MEDIUM':
+        elif diff == 'MEDIUM' or diff == 'ECONOMY' or diff == 'FORTUNE':
             self.lives = 40
-        else:
+        elif diff == 'HARD':
             self.lives = 30
+        elif diff == 'LUNCH':
+            self.lives = 45
+        elif diff == 'ROO':
+            self.lives = 4
+        elif diff == 'ENDURANCE':
+            self.lives = 35
+            
         self.diff = diff
         self.rnd = 1
         self.cats = cats
         self.ls_on = False
         self.fg_on = False
-        self.ls_used = False
-        self.lr_used = False
-        self.le_used = False
-        self.fg_used = False
+        self.ls_used = True if diff in ['LUNCH','ECONOMY','ROO','CRIPPLE'] else False
+        self.lr_used = True if diff in ['LUNCH','ECONOMY','ROO','CRIPPLE'] else False 
+        self.le_used = True if diff in ['LUNCH','ECONOMY','ROO','CRIPPLE'] else False
+        self.fg_used = True if diff in ['ECONOMY','ROO','CRIPPLE'] else False
         self.sel_phrase = None
         self.curr_cat = None
+        self.money = 0
+        self.multiplier = 10
+        self.guess_count = 0
 
     def cat_select(self):
         roundframe.pack_forget()
@@ -121,22 +131,33 @@ class Game(object):
             for i in range(10):
                 cat_buttons[i].config(text = self.cats[i].get_name(),command = lambda i=i: self.start_puzzle(self.cats[i]))
         else:
-            for i in range(10):
-                if self.cats[i].is_used():
-                    cat_buttons[i].config(bg = 'black',command = lambda: c2.config(text = 'You\'ve already completed this category.'))
+            if self.diff != 'ENDURANCE':
+                for i in range(10):
+                    if self.cats[i].is_used():
+                        cat_buttons[i].config(bg = 'black',command = lambda: c2.config(text = 'You\'ve already completed this category.'))
         c1.config(text = 'Round: ' + str(self.rnd) + '\n')
         catsel.pack()
     
     def start_puzzle(self,cat):
         self.curr_cat = cat
+        self.guess_count = 0
+        self.multiplier = 10
         catsel.pack_forget()
         guessframe.pack()
-        if self.rnd in [1,2,3]:
-            self.sel_phrase = self.curr_cat.load_phrase('EASY')
-        elif self.rnd in [4,5,6]:
-            self.sel_phrase = self.curr_cat.load_phrase('MEDIUM')
-        else:
+        if self.diff == 'LUNCH':
+            self.fg_used = False
+            fgb.config(bg = 'green')
+        if self.diff == 'ROO':
+            self.lives = 4
+        if self.diff == 'ENDURANCE':
             self.sel_phrase = self.curr_cat.load_phrase('HARD')
+        else:
+            if self.rnd in [1,2,3]:
+                self.sel_phrase = self.curr_cat.load_phrase('EASY')
+            elif self.rnd in [4,5,6]:
+                self.sel_phrase = self.curr_cat.load_phrase('MEDIUM')
+            else:
+                self.sel_phrase = self.curr_cat.load_phrase('HARD')
 
         g1.config(text = 'Round: ' + str(self.rnd))
         g2.config(text = self.curr_cat.get_name()+'\n')
@@ -145,7 +166,10 @@ class Game(object):
         g5.config(text = 'Lives: ' + str(self.lives))
         
         for l,b in letter_buttons.items():
-            b.config(bg = 'yellow', command = lambda l=l:self.guess_letter(l))
+            if self.diff == 'FORTUNE' and l in 'AEIOU':
+                b.config(bg = 'red', command = lambda: g4.config(text = 'You\'re not allowed to guess vowels...'))   
+            else:
+                b.config(bg = 'yellow', command = lambda l=l:self.guess_letter(l))
             
         lsb.config(command = lambda: self.guess_letter('save'))
         lrb.config(command = lambda: self.guess_letter('reveal'))
@@ -335,18 +359,34 @@ mainb3.pack()
 
 diffmenu = Frame(frame)
 #difficulty buttons
-d1 = Label(diffmenu,font = ("Trebuchet MS",9), text = 'Select your Difficulty...')
-easyb = Button(diffmenu,width = 48, text= 'EASY: 50 lives', font = ("Trebuchet MS",9),bg= 'green',command = lambda: start_game('EASY',filter_cats(CATS)))
-mediumb = Button(diffmenu,width = 48, text= 'MEDIUM: 40 lives', font = ("Trebuchet MS",9),bg= 'yellow',command = lambda: start_game('MEDIUM',filter_cats(CATS)))
-hardb = Button(diffmenu,width = 48, text= 'HARD: 30 lives', font = ("Trebuchet MS",9),bg= 'red',command = lambda: start_game('HARD',filter_cats(CATS)))
+d1 = Label(diffmenu,font = ("Trebuchet MS",9), text = 'Select your Game Mode...')
+diffbframe = Frame(diffmenu)
+easyb = Button(diffbframe,width = 24, text= 'CLASSIC EASY: \n 50 lives', font = ("Trebuchet MS",9),bg= 'green',command = lambda: start_game('EASY',filter_cats(CATS)))
+mediumb = Button(diffbframe,width = 24, text= 'CLASSIC MEDIUM: \n 40 lives', font = ("Trebuchet MS",9),bg= 'yellow',command = lambda: start_game('MEDIUM',filter_cats(CATS)))
+hardb = Button(diffbframe,width = 24, text= 'CLASSIC HARD: \n 30 lives', font = ("Trebuchet MS",9),bg= 'red',command = lambda: start_game('HARD',filter_cats(CATS)))
+freelunchb = Button(diffbframe,width = 24, text= 'FREE LUNCH: \n 45 lives \n 1 Free Guess per Round \n No other powerups', font = ("Trebuchet MS",9),bg= 'LimeGreen',command = lambda: start_game('LUNCH',filter_cats(CATS)))
+crippledb = Button(diffbframe,width = 24, text= 'CRIPPLED: \n 50 lives \n No powerups \n The Original Idea', font = ("Trebuchet MS",9),bg= 'yellow green',command = lambda: start_game('CRIPPLE',filter_cats(CATS)))
+economyb = Button(diffbframe,width = 24, text= 'ECONOMY: \n 40 lives \n Earn money by guessing \n Buy powerups with money', font = ("Trebuchet MS",9),bg= 'tan',command = lambda: start_game('ECONOMY',filter_cats(CATS)))
+fortuneb = Button(diffbframe,width = 24, text= 'WHEEL OF FORTUNE: \n 40 lives \n No guessing vowels \n They appear slowly', font = ("Trebuchet MS",9),bg= 'orange',command = lambda: start_game('FORTUNE',filter_cats(CATS)))
+hangaroob = Button(diffbframe,width = 24, text= 'HANG-A-ROO: \n 4 lives a round \n No powerups \n Inspirational', font = ("Trebuchet MS",9),bg= 'violet red',command = lambda: start_game('ROO',filter_cats(CATS)))
+endb = Button(diffbframe,width = 24, text= 'ENDURANCE: \n 35 lives \n Infinite hard phrases \n Until you lose', font = ("Trebuchet MS",9),bg= 'magenta',command = lambda: start_game('ENDURANCE',filter_cats(CATS)))
+
+easyb.grid(row = 0, column = 0)
+mediumb.grid(row = 0, column = 1)
+hardb.grid(row = 0, column = 2)
+freelunchb.grid(row = 1, column = 0)
+crippledb.grid(row = 2, column = 0)
+economyb.grid(row = 1, column = 1)
+fortuneb.grid(row = 2, column = 1)
+hangaroob.grid(row = 1, column = 2)
+endb.grid(row = 2, column = 2)
+
 d2 = Label(diffmenu,text = '')
 dbackb = Button(diffmenu,width = 48, text= 'BACK', font = ("Trebuchet MS",9),bg= 'blue',command = diff_back)
 dquitb = Button(diffmenu,width = 48, text= 'QUIT', font = ("Trebuchet MS",9),bg= 'red',command = frame.quit)
 
 d1.pack()
-easyb.pack()
-mediumb.pack()
-hardb.pack()
+diffbframe.pack()
 d2.pack()
 dbackb.pack()
 dquitb.pack()
